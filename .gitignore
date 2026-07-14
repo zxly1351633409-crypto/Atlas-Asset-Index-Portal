@@ -40,10 +40,24 @@ next-env.d.ts
 /.wrangler/
 /outputs/
 /work/
+/lab-data/
+/public/connector-data/
+.external-share-watcher.pid
 .dev-server*.log
+/config/local.user.json
+/.runtime/
+/Atlas-Data/
+/release/*.zip
+/release/*.sha256.txt
+/docs/images/plan/
+/docs/12-*
+/tools/Build-ResourcePlanDocx.py
+/交付/
 
-# build artifacts
-/build/
+# required build integration source
+/build/*
+!/build/sites-vite-plugin.ts
 
-# openai / ai config
-.openai/
+# required non-secret hosting metadata
+/.openai/*
+!/.openai/hosting.json

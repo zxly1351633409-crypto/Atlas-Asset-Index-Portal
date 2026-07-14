@@ -1,0 +1,27 @@
+{
+  "tfvc": {
+    "enabled": false,
+    "collectionUrl": "http://tfs-server:8080/tfs/DefaultCollection",
+    "serverPath": "$/ProjectAurora",
+    "localWorkspace": "C:\\AtlasLab\\TFVC-Workspace",
+    "mode": "read-only-pilot"
+  },
+  "nas": {
+    "enabled": false,
+    "uncPath": "\\\\localhost\\AtlasLab",
+    "mode": "read-only-pilot"
+  },
+  "externalContentShare": {
+    "enabled": true,
+    "rootPath": "F:\\Atlas-Company-Share",
+    "uncPath": "\\\\localhost\\AtlasModelShare",
+    "manifestUrl": "/connector-data/external-content-share.json",
+    "mode": "metadata-and-preview-only"
+  },
+  "indexing": {
+    "metadataBatchSize": 500,
+    "thumbnailPageSize": 40,
+    "prefetchPages": 1,
+    "sourceDownload": "on-demand"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "projectFolder": "ProjectAurora",
+  "domains": [
+    { "id": "scene", "label": "场景", "relativeRoot": "Scenes" },
+    { "id": "character", "label": "角色", "relativeRoot": "Characters" },
+    { "id": "illustration", "label": "插画", "relativeRoot": "Illustrations" },
+    { "id": "ui", "label": "UI", "relativeRoot": "UI" },
+    { "id": "writing-request", "label": "文案需求", "relativeRoot": "Requirements\\Writing" },
+    { "id": "system-request", "label": "系统需求", "relativeRoot": "Requirements\\System" },
+    { "id": "illustration-request", "label": "插画需求", "relativeRoot": "Requirements\\Illustration" },
+    { "id": "model", "label": "模型", "relativeRoot": "Models" },
+    { "id": "material", "label": "材质贴图", "relativeRoot": "Materials" }
+  ]
+}

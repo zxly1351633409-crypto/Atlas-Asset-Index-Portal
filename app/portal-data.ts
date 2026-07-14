@@ -3,6 +3,7 @@ export type VersionState = "当前" | "历史" | "制作中";
 export type ChangeState = "新增" | "修改" | "延续" | "待确认";
 export type ContentType = "visual" | "model" | "ui" | "document" | "sheet";
 export type IntegrityState = "完整" | "缺少预览" | "缺少源文件" | "路径待确认";
+export type AssetOperationAction = "上传" | "修改" | "删除" | "回溯";
 
 export type WorkDomain = {
   id: string;
@@ -32,6 +33,20 @@ export type PreviewAsset = {
   url: string;
 };
 
+export type AssetOperation = {
+  id: string;
+  action: AssetOperationAction;
+  revision: string;
+  sourceRevision: string;
+  actor: string;
+  actorGroup: string;
+  time: string;
+  source: "TFVC" | "NAS";
+  path: string;
+  summary: string;
+  fileCount: number;
+};
+
 export type ContentItem = {
   id: string;
   title: string;
@@ -47,6 +62,7 @@ export type ContentItem = {
   tags: string[];
   sourceFiles: SourceFile[];
   relations: string[];
+  operations: AssetOperation[];
 };
 
 export type ModuleVersion = {
@@ -68,6 +84,7 @@ export type ProjectModule = {
   cover?: string;
   currentVersion: string;
   status: "正常" | "制作中" | "待整理";
+  source: "演示" | "共享盘";
   requirementCount: number;
   outputCount: number;
   reusableCount: number;
@@ -159,6 +176,39 @@ function sourceFilesFor(domainId: string, moduleName: string, version: string, t
   ];
 }
 
+function operationHistoryFor(seed: ModuleSeed, version: string, versionIndex: number, itemIndex: number, title: string, sourceFiles: SourceFile[]): AssetOperation[] {
+  const primarySource = sourceFiles[0];
+  const source = primarySource?.storage === "NAS" ? "NAS" : "TFVC";
+  const path = primarySource?.path ?? `TFVC/${seed.domainId}/${seed.name}/${version}/${title}`;
+  const date = versionIndex === 0 ? "2026-07-14" : versionIndex === 1 ? "2026-06-18" : "2026-05-07";
+  const baseRevision = 4200 + versionIndex * 100 + itemIndex * 10;
+  const actorGroup = productionDomains.has(seed.domainId) ? "资产组" : requirementDomains.has(seed.domainId) ? "策划组" : `${workDomains.find((domain) => domain.id === seed.domainId)?.label ?? "内容"}组`;
+  const operationId = `${seed.id}-${version}-${itemIndex}`;
+
+  return [
+    {
+      id: `${operationId}-operation-4`, action: "修改", revision: `${version}-R4`, sourceRevision: source === "TFVC" ? `C${baseRevision + 4}` : `NAS-${baseRevision + 4}`,
+      actor: seed.owner, actorGroup, time: `${date} 14:26`, source, path,
+      summary: "更新当前交付文件和预览，并保留上一修订快照。", fileCount: Math.max(sourceFiles.length, 1),
+    },
+    {
+      id: `${operationId}-operation-3`, action: "回溯", revision: `${version}-R3`, sourceRevision: source === "TFVC" ? `C${baseRevision + 3}` : `NAS-${baseRevision + 3}`,
+      actor: "周遥", actorGroup: "项目管理", time: `${date} 11:42`, source, path,
+      summary: `从 ${version}-R1 回溯并创建新修订，没有覆盖删除记录。`, fileCount: Math.max(sourceFiles.length, 1),
+    },
+    {
+      id: `${operationId}-operation-2`, action: "删除", revision: `${version}-R2`, sourceRevision: source === "TFVC" ? `C${baseRevision + 2}` : `NAS-${baseRevision + 2}`,
+      actor: seed.owner, actorGroup, time: `${date} 10:18`, source, path,
+      summary: "删除错误交付；门户保留元数据和快照，可从此节点恢复。", fileCount: 1,
+    },
+    {
+      id: `${operationId}-operation-1`, action: "上传", revision: `${version}-R1`, sourceRevision: source === "TFVC" ? `C${baseRevision + 1}` : `NAS-${baseRevision + 1}`,
+      actor: seed.owner, actorGroup, time: `${date} 09:05`, source, path,
+      summary: "首次登记预览与源文件，建立内容和来源路径关系。", fileCount: Math.max(sourceFiles.length, 1),
+    },
+  ];
+}
+
 function makeItems(seed: ModuleSeed, version: string, versionIndex: number): ContentItem[] {
   const domain = workDomains.find((item) => item.id === seed.domainId)!;
   const visibleTitles = versionIndex === 0 ? seed.titles : seed.titles.slice(0, 2);
@@ -183,6 +233,7 @@ function makeItems(seed: ModuleSeed, version: string, versionIndex: number): Con
     tags: [domain.label, seed.name, version],
     sourceFiles,
     relations: requirementDomains.has(seed.domainId) ? ["关联评审记录", "等待绑定产出"] : ["关联上游需求", "可加入复用清单"],
+    operations: operationHistoryFor(seed, version, versionIndex, index, title, sourceFiles),
     };
   });
 }
@@ -203,6 +254,7 @@ function makeModule(seed: ModuleSeed, index: number): ProjectModule {
     cover: seed.cover,
     currentVersion: "V6.2",
     status: seed.status ?? "正常",
+    source: "演示",
     requirementCount: 3 + index,
     outputCount: 8 + index * 3,
     reusableCount: productionDomains.has(seed.domainId) || seed.domainId === "scene" ? 4 + index * 2 : index,
