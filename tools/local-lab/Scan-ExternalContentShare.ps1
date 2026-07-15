@@ -20,6 +20,7 @@ $previewCache = Join-Path $outputRoot "previews"
 $outputFile = Join-Path $outputRoot "external-content-share.json"
 $stateRoot = Join-Path $portalRootFull "lab-data"
 $stateFile = Join-Path $stateRoot "external-content-state.json"
+$thumbnailGenerator = Join-Path $PSScriptRoot "Generate-PreviewThumbnail.mjs"
 
 if (-not (Test-Path -LiteralPath $projectRoot)) {
   throw "Project folder not found: $projectRoot"
@@ -61,6 +62,70 @@ function Get-MetadataValue {
     if ($null -ne $value -and -not [string]::IsNullOrWhiteSpace([string]$value)) { return $value }
   }
   return $Fallback
+}
+
+function Get-NodeExecutable {
+  $systemNode = Get-Command node.exe -ErrorAction SilentlyContinue
+  if ($systemNode) { return $systemNode.Source }
+  $portableNode = Join-Path $portalRootFull ".runtime\node\node.exe"
+  if (Test-Path -LiteralPath $portableNode) { return $portableNode }
+  return $null
+}
+
+function Wait-ForFileStable {
+  param(
+    [string]$Path,
+    [int]$TimeoutSeconds = 120
+  )
+
+  $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+  $previousLength = -1L
+  $previousWriteTicks = -1L
+  $stableReadings = 0
+
+  while ((Get-Date) -lt $deadline) {
+    try {
+      $item = Get-Item -LiteralPath $Path -ErrorAction Stop
+      $stream = [System.IO.File]::Open($Path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::None)
+      $stream.Dispose()
+
+      if ($item.Length -eq $previousLength -and $item.LastWriteTimeUtc.Ticks -eq $previousWriteTicks) {
+        $stableReadings += 1
+      } else {
+        $stableReadings = 0
+        $previousLength = $item.Length
+        $previousWriteTicks = $item.LastWriteTimeUtc.Ticks
+      }
+
+      if ($stableReadings -ge 2) { return $item }
+    } catch {
+      $stableReadings = 0
+    }
+    Start-Sleep -Milliseconds 650
+  }
+
+  throw "文件在 $TimeoutSeconds 秒内仍未写入完成：$Path"
+}
+
+function New-PreviewThumbnail {
+  param(
+    [string]$InputPath,
+    [string]$OutputPath
+  )
+
+  $node = Get-NodeExecutable
+  if ([string]::IsNullOrWhiteSpace($node)) {
+    throw "未找到 Node.js，启动 Atlas 后会自动准备运行环境并重试。"
+  }
+  if (-not (Test-Path -LiteralPath $thumbnailGenerator)) {
+    throw "缺少缩略图生成脚本：$thumbnailGenerator"
+  }
+
+  $output = @(& $node $thumbnailGenerator $InputPath $OutputPath 1280 960 2>&1)
+  if ($LASTEXITCODE -ne 0) {
+    throw (($output | ForEach-Object { [string]$_ }) -join " ").Trim()
+  }
+  return (($output -join "") | ConvertFrom-Json)
 }
 
 $share = Get-SmbShare -Name $ShareName -ErrorAction SilentlyContinue
@@ -184,23 +249,51 @@ foreach ($group in @($assetGroups.Values | Sort-Object DomainId, Module, Version
   $previewUncPath = $null
   $previewSize = 0
   $previewFormat = $null
+  $previewSourceSize = 0
+  $previewSourceFormat = $null
+  $thumbnailStatus = if ($previewFile) { "pending" } else { "missing" }
+  $thumbnailError = $null
 
   if ($previewFile) {
     $previewRelativePath = Get-RelativePath -BasePath $group.AssetRoot -Path $previewFile.FullName
     $previewIsDedicated = $previewRelativePath.StartsWith("Preview\", [System.StringComparison]::OrdinalIgnoreCase)
-    $cacheName = "$(Get-Slug -Value $assetId)-$(Get-Slug -Value $previewFile.Name)"
-    Copy-Item -LiteralPath $previewFile.FullName -Destination (Join-Path $previewCache $cacheName) -Force
-    [void]$desiredPreviewNames.Add($cacheName)
-    $previewUrl = "/connector-data/previews/$cacheName"
-    $previewPath = $previewFile.FullName
-    $previewUncPath = Convert-ToUncPath -Path $previewFile.FullName
-    $previewSize = [int64]$previewFile.Length
-    $previewFormat = $previewFile.Extension.TrimStart(".").ToUpperInvariant()
+    try {
+      $initialStamp = "$($previewFile.FullName)|$($previewFile.Length)|$($previewFile.LastWriteTimeUtc.Ticks)"
+      $initialVersion = (Get-Hash -Value $initialStamp).Substring(0, 16)
+      $cacheName = "$(Get-Slug -Value $assetId)-$initialVersion.jpg"
+      $cachePath = Join-Path $previewCache $cacheName
+
+      if (-not (Test-Path -LiteralPath $cachePath)) {
+        $previewFile = Wait-ForFileStable -Path $previewFile.FullName
+        $stableStamp = "$($previewFile.FullName)|$($previewFile.Length)|$($previewFile.LastWriteTimeUtc.Ticks)"
+        $stableVersion = (Get-Hash -Value $stableStamp).Substring(0, 16)
+        $cacheName = "$(Get-Slug -Value $assetId)-$stableVersion.jpg"
+        $cachePath = Join-Path $previewCache $cacheName
+        if (-not (Test-Path -LiteralPath $cachePath)) {
+          [void](New-PreviewThumbnail -InputPath $previewFile.FullName -OutputPath $cachePath)
+        }
+      }
+
+      $cachedPreview = Get-Item -LiteralPath $cachePath
+      [void]$desiredPreviewNames.Add($cacheName)
+      $previewUrl = "/connector-data/previews/$cacheName"
+      $previewPath = $previewFile.FullName
+      $previewUncPath = Convert-ToUncPath -Path $previewFile.FullName
+      $previewSize = [int64]$cachedPreview.Length
+      $previewFormat = "JPG"
+      $previewSourceSize = [int64]$previewFile.Length
+      $previewSourceFormat = $previewFile.Extension.TrimStart(".").ToUpperInvariant()
+      $thumbnailStatus = "ready"
+    } catch {
+      $thumbnailStatus = "error"
+      $thumbnailError = $_.Exception.Message
+      Write-Warning "无法为 '$($previewFile.FullName)' 生成缩略图：$thumbnailError"
+    }
   }
 
   $sourceFiles = [System.Collections.Generic.List[object]]::new()
   foreach ($file in $files) {
-    if (($metadataFile -and $file.FullName -eq $metadataFile.FullName) -or ($previewIsDedicated -and $previewFile -and $file.FullName -eq $previewFile.FullName)) { continue }
+    if ($metadataFile -and $file.FullName -eq $metadataFile.FullName) { continue }
     $relativeToAsset = Get-RelativePath -BasePath $group.AssetRoot -Path $file.FullName
     $fileSegments = @($relativeToAsset -split "[\\/]")
     $sourceFiles.Add([ordered]@{
@@ -275,6 +368,10 @@ foreach ($group in @($assetGroups.Values | Sort-Object DomainId, Module, Version
     previewUncPath = $previewUncPath
     previewSize = $previewSize
     previewFormat = $previewFormat
+    previewSourceSize = $previewSourceSize
+    previewSourceFormat = $previewSourceFormat
+    thumbnailStatus = $thumbnailStatus
+    thumbnailError = $thumbnailError
     sourceFiles = @($sourceFiles)
     fileCount = $files.Count
     totalBytes = [int64]$totalBytes

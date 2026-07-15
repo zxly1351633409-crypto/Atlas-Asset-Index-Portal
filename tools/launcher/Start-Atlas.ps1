@@ -15,7 +15,7 @@ $runtimeRoot = Join-Path $portalRoot ".runtime"
 $logsRoot = Join-Path $runtimeRoot "logs"
 $cacheRoot = Join-Path $runtimeRoot "npm-cache"
 $configPath = Join-Path $portalRoot "config\local.user.json"
-$launcherVersion = "0.2.0"
+$launcherVersion = "0.2.1"
 New-Item -ItemType Directory -Path $logsRoot, $cacheRoot -Force | Out-Null
 
 function Write-Step {
@@ -192,10 +192,6 @@ try {
   }
   if ($effectivePort -ne $Port) { Write-Warning "端口 $Port 已占用，本次改用 $effectivePort。" }
 
-  Write-Step "检查资源目录并生成最新索引。"
-  $initializer = Join-Path $portalRoot "tools\local-lab\Initialize-ExternalContentShare.ps1"
-  & $initializer -ShareRoot $resourceRootFull -PortalRoot $portalRoot | Out-Null
-
   $runtime = Get-NodeRuntime
   $env:PATH = "$(Split-Path $runtime.Node -Parent);$env:PATH"
   $env:npm_config_cache = $cacheRoot
@@ -218,6 +214,10 @@ try {
   } else {
     Write-Step "依赖已就绪，无需重复安装。"
   }
+
+  Write-Step "检查资源目录并生成最新索引。"
+  $initializer = Join-Path $portalRoot "tools\local-lab\Initialize-ExternalContentShare.ps1"
+  & $initializer -ShareRoot $resourceRootFull -PortalRoot $portalRoot | Out-Null
 
   $buildHash = $currentBuildFingerprint
   $buildHashPath = Join-Path $runtimeRoot "build.hash"

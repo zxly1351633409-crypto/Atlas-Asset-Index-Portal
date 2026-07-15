@@ -31,7 +31,7 @@ ATLAS 本机共享盘目录
   <工作域>\<模块>\<版本>\<内容名>\
 
 内容目录建议包含：
-  Preview\       JPG、PNG、WEBP 轻量预览
+  Preview\       JPG、PNG、WEBP（自动生成轻量缩略图）
   Source\        PSD、BLEND、MAX、C4D 等源工程
   Export\        FBX、OBJ、GLTF、成图等交付文件
   Documents\     DOCX、XLSX 等需求文档
@@ -39,6 +39,9 @@ ATLAS 本机共享盘目录
 
 asset.json 可以填写：id、name、description、owner、actorGroup、tags。
 不填写时，门户会根据目录名自动生成这些信息。
+
+以上是本机演示结构，不要求公司历史资源迁移。
+JPG、PSD、3D 工程位于不同路径时，可在门户中关联为同一条内容记录。
 "@
 Set-Content -LiteralPath (Join-Path $projectRoot "_目录说明.txt") -Value $guide -Encoding UTF8
 

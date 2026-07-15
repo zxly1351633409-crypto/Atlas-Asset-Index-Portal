@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
+import { promisify } from "node:util";
+import { fileURLToPath } from "node:url";
+import sharp from "sharp";
+
+const execFileAsync = promisify(execFile);
 
 async function render() {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
@@ -50,6 +58,29 @@ test("keeps preview assets separate from source files", async () => {
   assert.match(schema, /lifecycleStatus: text\("lifecycle_status"/);
 });
 
+test("creates a bounded thumbnail from a large preview image", async (context) => {
+  const temporaryRoot = await mkdtemp(join(tmpdir(), "atlas-thumbnail-"));
+  context.after(() => rm(temporaryRoot, { recursive: true, force: true }));
+  const inputPath = join(temporaryRoot, "large.jpg");
+  const outputPath = join(temporaryRoot, "thumbnail.jpg");
+  const generatorPath = fileURLToPath(new URL("../tools/local-lab/Generate-PreviewThumbnail.mjs", import.meta.url));
+
+  await sharp({
+    create: { width: 12000, height: 8000, channels: 3, background: { r: 37, g: 112, b: 176 } },
+  }).jpeg({ quality: 95 }).toFile(inputPath);
+
+  const { stdout } = await execFileAsync(process.execPath, [generatorPath, inputPath, outputPath]);
+  const result = JSON.parse(stdout);
+  const metadata = await sharp(outputPath).metadata();
+  const [input, output] = await Promise.all([stat(inputPath), stat(outputPath)]);
+
+  assert.equal(result.format, "JPG");
+  assert.equal(metadata.format, "jpeg");
+  assert.ok((metadata.width ?? 0) <= 1280);
+  assert.ok((metadata.height ?? 0) <= 960);
+  assert.ok(output.size < input.size);
+});
+
 test("models rollback as an append-only operation", async () => {
   const [portal, dataModel] = await Promise.all([
     readFile(new URL("../app/AssetPortal.tsx", import.meta.url), "utf8"),
@@ -79,6 +110,10 @@ test("keeps enterprise connector probes safe by default", async () => {
   assert.match(portal, /canUploadToActiveDomain/);
   assert.match(portal, /canManageStructure/);
   assert.match(portal, /当前只能上传到/);
+  assert.match(portal, /关联已有路径/);
+  assert.match(portal, /linkedPaths\.preview/);
+  assert.match(portal, /linkedPaths\.design/);
+  assert.match(portal, /linkedPaths\.project/);
   assert.match(connectorConfig, /"mode": "read-only-pilot"/);
   assert.match(connectorConfig, /"sourceDownload": "on-demand"/);
   assert.match(connectorConfig, /"mode": "metadata-and-preview-only"/);
@@ -90,6 +125,9 @@ test("keeps enterprise connector probes safe by default", async () => {
   assert.match(shareScanner, /sourceFiles/);
   assert.match(shareScanner, /fingerprint/);
   assert.match(shareScanner, /previewIsDedicated/);
+  assert.match(shareScanner, /Wait-ForFileStable/);
+  assert.match(shareScanner, /New-PreviewThumbnail/);
+  assert.match(shareScanner, /thumbnailStatus/);
   assert.match(shareScanner, /modules = @\(\$moduleRecords\)/);
   assert.match(shareScanner, /\$segments\.Count -lt 3/);
   assert.equal(JSON.parse(domainMap).domains.length, 9);

@@ -128,6 +128,7 @@ export function AssetPortal() {
       return;
     }
     setAccountOpen(false);
+    setSidebarOpen(false);
     setAddOpen(true);
   };
 
@@ -619,6 +620,14 @@ type CustomModule = { id: string; domainId: string; name: string };
 type CustomVersion = { moduleId: string; label: string };
 type UploadKind = "preview" | "design" | "project" | "document";
 type PendingUpload = { id: string; name: string; relativePath: string; kind: UploadKind };
+type SourceMode = "files" | "paths";
+
+const emptyLinkedPaths: Record<UploadKind, string> = {
+  preview: "",
+  design: "",
+  project: "",
+  document: "",
+};
 
 const contentTypeOptions: Array<{ id: ContentType; label: string; formats: string; icon: LucideIcon }> = [
   { id: "visual", label: "视觉内容", formats: "JPG / PSD / 3D", icon: FileImage },
@@ -651,7 +660,8 @@ function AddContentDialog({ initialDomainId, initialModuleId, initialVersion, cu
   const selectedCustomModule = customModules.find((module) => module.id === moduleId);
   const [version, setVersion] = useState(initialVersion ?? selectedModule?.currentVersion ?? "V6.2");
   const [title, setTitle] = useState("");
-  const [path, setPath] = useState("");
+  const [sourceMode, setSourceMode] = useState<SourceMode>("files");
+  const [linkedPaths, setLinkedPaths] = useState<Record<UploadKind, string>>({ ...emptyLinkedPaths });
   const [attachedFiles, setAttachedFiles] = useState<PendingUpload[]>([]);
   const [created, setCreated] = useState(false);
   const previewInputRef = useRef<HTMLInputElement>(null);
@@ -721,17 +731,30 @@ function AddContentDialog({ initialDomainId, initialModuleId, initialVersion, cu
 
   const typeRule = contentTypeOptions.find((item) => item.id === contentType)!;
   const hasFiles = attachedFiles.length > 0;
+  const hasLinkedPaths = Object.values(linkedPaths).some((value) => value.trim());
+  const hasSelectedSource = sourceMode === "files" ? hasFiles : hasLinkedPaths;
   const isRequirementFile = contentType === "document" || contentType === "sheet";
   const countByKind = (kind: UploadKind) => attachedFiles.filter((file) => file.kind === kind).length;
   const projectRoot = attachedFiles.find((file) => file.kind === "project")?.relativePath.split("/")[0];
-  const integrity = hasFiles ? "完整" : path.trim() ? "路径待确认" : ["document", "sheet"].includes(contentType) ? "缺少源文件" : "缺少预览";
-  const canCreate = Boolean(title.trim() && moduleId && (hasFiles || path.trim()));
+  const integrity = hasSelectedSource ? (sourceMode === "files" ? "完整" : "路径待确认") : ["document", "sheet"].includes(contentType) ? "缺少源文件" : "缺少预览";
+  const canCreate = Boolean(title.trim() && moduleId && hasSelectedSource);
   const selectedDomainLabel = domainOptions.find((domain) => domain.id === domainId)?.label ?? "未选择工作域";
   const selectedModuleName = selectedModule?.name ?? selectedCustomModule?.name ?? "未选择模块";
 
   const selectContentType = (nextType: ContentType) => {
     setContentType(nextType);
     setAttachedFiles([]);
+    setLinkedPaths({ ...emptyLinkedPaths });
+    setCreated(false);
+  };
+
+  const changeSourceMode = (nextMode: SourceMode) => {
+    setSourceMode(nextMode);
+    setCreated(false);
+  };
+
+  const updateLinkedPath = (kind: UploadKind, value: string) => {
+    setLinkedPaths((current) => ({ ...current, [kind]: value }));
     setCreated(false);
   };
 
@@ -773,23 +796,36 @@ function AddContentDialog({ initialDomainId, initialModuleId, initialVersion, cu
             {!canManageStructure && <div className="structure-permission-note"><LockKeyhole size={14} />归属范围由账号权限限定；工作域、模块和版本由项目管理员维护。</div>}
           </div>}
           <label>类型<select value={contentType} onChange={(event) => selectContentType(event.target.value as ContentType)}>{contentTypeOptions.map((option) => <option value={option.id} key={option.id}>{option.label} · {option.formats}</option>)}</select></label>
-          {isRequirementFile ? (
-            <div className="upload-choice-grid single">
-              <button className={countByKind("document") ? "selected" : ""} type="button" onClick={() => documentInputRef.current?.click()}><FileText size={18} /><span><strong>{contentType === "document" ? "DOCX 文档" : "XLSX 表格"}</strong><small>{countByKind("document") ? `${countByKind("document")} 个已选择` : typeRule.formats}</small></span></button>
-            </div>
-          ) : (
-            <div className="upload-choice-grid">
-              <button className={countByKind("preview") ? "selected" : ""} type="button" onClick={() => previewInputRef.current?.click()}><FileImage size={18} /><span><strong>JPG / PNG</strong><small>{countByKind("preview") ? `${countByKind("preview")} 个已选择` : "可多选"}</small></span></button>
-              <button className={countByKind("design") ? "selected" : ""} type="button" onClick={() => designInputRef.current?.click()}><Archive size={18} /><span><strong>PSD 源文件</strong><small>{countByKind("design") ? `${countByKind("design")} 个已选择` : "可多选"}</small></span></button>
-              <button className={countByKind("project") ? "selected" : ""} type="button" onClick={() => projectInputRef.current?.click()}><Box size={18} /><span><strong>3D 工程</strong><small>{projectRoot || "选择文件夹"}</small></span></button>
-            </div>
-          )}
-          <label className="path-link"><Link2 size={16} /><input value={path} onChange={(event) => { setPath(event.target.value); setCreated(false); }} placeholder="已有资源可直接粘贴 TFVC / NAS 路径" /></label>
+          <div className="intake-switch" role="group" aria-label="来源方式">
+            <button type="button" className={sourceMode === "files" ? "active" : ""} onClick={() => changeSourceMode("files")}><Upload size={15} />选择文件</button>
+            <button type="button" className={sourceMode === "paths" ? "active" : ""} onClick={() => changeSourceMode("paths")}><Link2 size={15} />关联已有路径</button>
+          </div>
+          {sourceMode === "files" ? isRequirementFile ? (
+              <div className="upload-choice-grid single">
+                <button className={countByKind("document") ? "selected" : ""} type="button" onClick={() => documentInputRef.current?.click()}><FileText size={18} /><span><strong>{contentType === "document" ? "DOCX 文档" : "XLSX 表格"}</strong><small>{countByKind("document") ? `${countByKind("document")} 个已选择` : typeRule.formats}</small></span></button>
+              </div>
+            ) : (
+              <div className="upload-choice-grid">
+                <button className={countByKind("preview") ? "selected" : ""} type="button" onClick={() => previewInputRef.current?.click()}><FileImage size={18} /><span><strong>JPG / PNG</strong><small>{countByKind("preview") ? `${countByKind("preview")} 个已选择` : "可多选"}</small></span></button>
+                <button className={countByKind("design") ? "selected" : ""} type="button" onClick={() => designInputRef.current?.click()}><Archive size={18} /><span><strong>PSD 源文件</strong><small>{countByKind("design") ? `${countByKind("design")} 个已选择` : "可多选"}</small></span></button>
+                <button className={countByKind("project") ? "selected" : ""} type="button" onClick={() => projectInputRef.current?.click()}><Box size={18} /><span><strong>3D 工程</strong><small>{projectRoot || "选择文件夹"}</small></span></button>
+              </div>
+            ) : isRequirementFile ? (
+              <div className="linked-path-list single">
+                <label className="linked-path-row"><FileText size={17} /><span>{contentType === "document" ? "DOCX 路径" : "XLSX 路径"}</span><input value={linkedPaths.document} onChange={(event) => updateLinkedPath("document", event.target.value)} placeholder="TFVC 或 NAS 文件路径" /></label>
+              </div>
+            ) : (
+              <div className="linked-path-list">
+                <label className="linked-path-row"><FileImage size={17} /><span>JPG / PNG</span><input value={linkedPaths.preview} onChange={(event) => updateLinkedPath("preview", event.target.value)} placeholder="预览图路径" /></label>
+                <label className="linked-path-row"><Archive size={17} /><span>PSD</span><input value={linkedPaths.design} onChange={(event) => updateLinkedPath("design", event.target.value)} placeholder="分层源文件路径" /></label>
+                <label className="linked-path-row"><Box size={17} /><span>3D 工程</span><input value={linkedPaths.project} onChange={(event) => updateLinkedPath("project", event.target.value)} placeholder="工程文件夹路径" /></label>
+              </div>
+            )}
           <input ref={previewInputRef} hidden type="file" multiple accept=".jpg,.jpeg,.png,.webp" onChange={(event) => { addSelectedFiles(event.currentTarget.files, "preview"); event.currentTarget.value = ""; }} />
           <input ref={designInputRef} hidden type="file" multiple accept=".psd,.psb,.ai" onChange={(event) => { addSelectedFiles(event.currentTarget.files, "design"); event.currentTarget.value = ""; }} />
           <input ref={projectInputRef} hidden type="file" multiple {...({ webkitdirectory: "", directory: "" } as InputHTMLAttributes<HTMLInputElement>)} onChange={(event) => { addSelectedFiles(event.currentTarget.files, "project"); event.currentTarget.value = ""; }} />
           <input ref={documentInputRef} hidden type="file" multiple accept={contentType === "document" ? ".docx" : ".xlsx"} onChange={(event) => { addSelectedFiles(event.currentTarget.files, "document"); event.currentTarget.value = ""; }} />
-          {hasFiles && <div className="attached-files">
+          {sourceMode === "files" && hasFiles && <div className="attached-files">
             {countByKind("preview") > 0 && <span><FileImage size={13} />预览图 {countByKind("preview")}<button aria-label="移除预览图" onClick={() => clearUploadKind("preview")}><X size={12} /></button></span>}
             {countByKind("design") > 0 && <span><Archive size={13} />PSD {countByKind("design")}<button aria-label="移除 PSD" onClick={() => clearUploadKind("design")}><X size={12} /></button></span>}
             {countByKind("project") > 0 && <span><Box size={13} />3D 工程 {countByKind("project")} 个文件<button aria-label="移除 3D 工程" onClick={() => clearUploadKind("project")}><X size={12} /></button></span>}

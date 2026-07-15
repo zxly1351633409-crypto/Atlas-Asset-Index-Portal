@@ -51,6 +51,10 @@ ProjectAurora\Scenes\J 剧情 模块\1.0\preview.png
 
 页面会产生“场景 → J 剧情 模块 → 1.0 → preview”关系。内容文件夹也可包含 `Preview`、`Source`、`Export`、`Documents` 子目录。
 
+JPG、PNG、WebP 会在文件写入完成后生成最长边不超过 1280 像素的轻量 JPEG 缩略图；高清原图继续保留在原目录并作为来源文件按需获取。大图复制期间不会读取半成品，生成失败会记录明确状态，目录监视器也不会因此退出。
+
+标准目录只用于本机演示。公司现有 JPG、PSD 与 3D 工程可以位于不同 TFVC/NAS 路径；正式接入应把这些路径关联为同一条内容记录，而不是要求搬到同一个文件夹。
+
 ## 换电脑与共享盘演示
 
 资源提供电脑：
@@ -75,7 +79,7 @@ ProjectAurora\Scenes\J 剧情 模块\1.0\preview.png
 - 场景、角色、需求、插画、UI、模型和材质贴图工作域。
 - 工作域 → 模块 → 版本轴 → 内容 → 来源文件的浏览流程。
 - 图片与模型预览图双击查看，高清图和源工程按需获取。
-- JPG/PNG、PSD、3D 工程文件夹与需求文档的组合登记。
+- JPG/PNG、PSD、3D 工程文件夹与需求文档的组合登记；也可分别关联三个已有 TFVC/NAS 路径。
 - 上传、修改、删除和回溯操作变更轴；回溯追加修订，不覆盖旧记录。
 - 模拟职位、团队、角色与工作域权限。
 - 外部目录自动扫描、轻量预览缓存和新增/删除同步。
@@ -103,7 +107,7 @@ npm.cmd run lint
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\release\Build-PortablePackage.ps1
 ```
 
-产物位于 `release\Atlas-Portal-Windows-v0.2.0.zip`，适合放到 GitHub Releases；ZIP 不包含本机配置、缓存、`node_modules` 或真实资源。
+产物位于 `release\Atlas-Portal-Windows-v0.2.1.zip`，适合放到 GitHub Releases；ZIP 不包含本机配置、缓存、`node_modules` 或真实资源。
 
 ## GitHub 上传建议
 

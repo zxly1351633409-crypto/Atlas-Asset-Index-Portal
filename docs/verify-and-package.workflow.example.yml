@@ -27,8 +27,8 @@ jobs:
         run: .\tools\release\Build-PortablePackage.ps1
       - uses: actions/upload-artifact@v7
         with:
-          name: Atlas-Portal-Windows-v0.2.0
+          name: Atlas-Portal-Windows-v0.2.1
           path: |
-            release/Atlas-Portal-Windows-v0.2.0.zip
-            release/Atlas-Portal-Windows-v0.2.0.zip.sha256.txt
+            release/Atlas-Portal-Windows-v0.2.1.zip
+            release/Atlas-Portal-Windows-v0.2.1.zip.sha256.txt
           if-no-files-found: error

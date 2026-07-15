@@ -442,9 +442,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 .upload-choice-grid > button span { min-width: 0; display: flex; flex-direction: column; }
 .upload-choice-grid > button strong { font-size: 12px; }
 .upload-choice-grid > button small { margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--faint); font-size: 10px; }
-.path-link { height: 44px; padding: 0 11px; display: flex !important; grid-template-columns: none !important; flex-direction: row; align-items: center; gap: 8px !important; border: 1px solid var(--line); border-radius: 7px; color: var(--faint) !important; }
-.path-link input { height: 42px; padding: 0 !important; border: 0 !important; background: transparent !important; }
-.path-link input:focus { outline: 0; }
+.linked-path-list { display: grid; gap: 7px; }
+.linked-path-row { min-width: 0; height: 44px; padding: 0 10px; display: grid !important; grid-template-columns: 20px 86px minmax(0, 1fr); align-items: center; gap: 8px !important; border: 1px solid var(--line); border-radius: 7px; color: #55555b !important; }
+.linked-path-row > svg { color: var(--faint); }
+.linked-path-row > span { font-size: 10px; font-weight: 700; }
+.linked-path-row > input { height: 40px; padding: 0 2px; border: 0; background: transparent; font: 10px Consolas, "Microsoft YaHei", monospace; }
+.linked-path-row > input:focus { outline: 0; }
 .content-type-options { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
 .content-type-options > button { min-width: 0; min-height: 58px; padding: 8px; display: grid; grid-template-columns: 18px minmax(0, 1fr) 14px; align-items: start; gap: 5px; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: #57575d; text-align: left; cursor: pointer; }
 .content-type-options > button.active { border-color: #202024; box-shadow: 0 0 0 1px #202024; color: #202024; }
